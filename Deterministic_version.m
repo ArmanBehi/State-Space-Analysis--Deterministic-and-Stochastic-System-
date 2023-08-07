@@ -1,539 +1,230 @@
 clc;
 clear;
 
-%This Program is written by Arman Behrad 
+%This Program is written by Arman Behrad for Exercise No.4 of the Course
+%"Spiking Network". Mart.No = 239526
 
-%% Parameters
+%% Time evolution of System
+
+%time increments and time axis
+
+dt = 0.0001;
+N_i = 100000;  %T_max
+t_i = (1:N_i)*dt; 
+
+% replicate stimuli along time axis
+
+n = round(1/dt);  %number of replications
+
+tau_E = 0.1;      % time-constant of E_cells activity
+
+w = 2:0.25:4; % w used for Time Evolution
+
+% obtain time-course of K-cell activities
+efactor = exp( - dt/tau_E );
+
+%Initial point
+%E_0 = 0;
+%E_ini = E_0*ones(2,1);
+E_ini = [0 ; 0];
+
+E_i = zeros(2,N_i); %peallocating
+E_i(:,1) = E_ini ;
+%E_matrix = [w , -1 ; 1 , -1];
+%connection to matrix [E1_E1 E1_E2 E2_E1 E2_E2]
+Constant = [-0.5 ; -0.5];
+
+figure(1)
+
+for j=1:length(w)
+%     init_1 = -0.2 + (1.4 + 0.2)*rand; %Capturing two different initial value randomly between -0.2 and 1.4
+%     init_2 = -0.2 + (1.4 + 0.2)*rand;
+%     E_i(:,1) = [init_1 ; init_2];
+E_ini = [0 ; 0];
+for i=2:N_i
+    %obtain activity of E cells
+    E_matrix = [w(j) , -1 ; 1 , -1];
+    E_input_i = E_matrix * (E_i(:,i)); 
+    E_input_i = E_input_i + Constant;
+    
+    E_ss_i = ActivationFunction( E_input_i , w(j) ); %Result of E functions at steady states
+    
+    E_i(:,i) = E_ss_i + (E_ini - E_ss_i) * efactor;
+   
+    
+    E_ini = E_i(:,i);
+end
+
+%Plotting the activity of populations in respect to time
+subplot(3,3,j) 
+plot(t_i,E_i(1,:),t_i,E_i(2,:),'LineWidth',2);
+axis([0 10 0 1.2]);
+title('Time-evolution of System Activaty');
+ylabel('free response')
+xlabel('Time')
+legend('E_1','E_2')
+
+%Time-evolution in the state space (E1,E2)
+%  plot(E_i(1,:)',t_i,t_i,E_i(2,:)','LineWidth',2);
+%  axis([-0.5 1.5 -0.5 1.5])
+%  %title(['Initial value, X =  ', num2str(init_1), ' Y = ',num2str(init_2),"w = " + w(j)])
+%  title("w = " + w(j))
+end
+
+ %% Calculation fix points using solve()
+
+x_0 = [0,0 ; 0.5,0.5 ; 1,0.5]; %defining three different initial step which determines three different root for w>2.25 and remain same for w<2.25
 tau = 10;
-k = 0.75;
-w = 3.6;
-tau2 = 2;
-sigma = 1;
-T_end = 20*tau;
-dt = 0.05*tau2;
-t = 0:dt:T_end;
+kappa = 0.75;
+w = 2:0.25:4; % w used for state space analysis
 
-theta = @(x) x.^2./(k.^2 + x.^2); %Non-linearity term
-%% simulate the time-evolution of the system
+% %Now we want to calculate fixed point for different values of w
+fix_x = zeros(length(w),3); % pre-allocating E1 value of fix point
+fix_y = zeros(length(w),3); % pre-allocating E2 value of fix point
 
-% Initialization
-E1 = zeros(size(t));
-E2 = zeros(size(t));
-N1 = zeros(size(t));
-N2 = zeros(size(t));
-E1(1) = 0.2;
-E2(1) = 0.6;
-N1(1) = 0;
-N2(1) = 0;
-
-% Iterative integration
-for i = 2:length(t)
-    dN1 = -N1(i-1) + sigma*sqrt(tau2*dt)*randn();
-    dN2 = -N2(i-1) + sigma*sqrt(tau2*dt)*randn();
-    dE1 = (-E1(i-1) + theta(w*E1(i-1) - E2(i-1) - 0.5) + N1(i-1))*dt/tau;
-    dE2 = (-E2(i-1) + theta(E1(i-1) - E2(i-1) - 0.5) + N2(i-1))*dt/tau;
-    E1(i) = E1(i-1) + dE1;
-    E2(i) = E2(i-1) + dE2;
-    N1(i) = N1(i-1) + dN1;
-    N2(i) = N2(i-1) + dN2;
+for i=1:length(w)
+       W=w(i);
+       for j=1:3 %evaluating root for each w with three different initial point
+         x0 = x_0(j,:);
+         fun = @(x)exercise4(x,W); 
+         z = fsolve(fun,x0);%solve the equation based on assigned initial point (x_0) and weight (W)
+         fix_x(i,j) = z(1,1);
+         fix_y(i,j) = z(1,2);
+       end
 end
 
-% Plotting
-figure;
-plot(t, E1, 'r', 'LineWidth', 2);
-hold on;
-plot(t, E2, 'b', 'LineWidth', 2);
-title('Time-Evolution of E1 and E2');
-xlabel('Time (ms)');
-ylabel('Voltage (mV)');
-legend('E1', 'E2');
+%It is not that everythings happens as you expected!
+fix_x(2,3) = fix_x(2,2);
+fix_y(2,3) = fix_y(2,2);
 
 
-%% Time-evolution in the State-State
-% Initialization
-E1 = zeros(length(t), 20);
-E2 = zeros(length(t), 20);
-N1 = zeros(length(t), 20);
-N2 = zeros(length(t), 20);
-E1(1, :) = 0.2;
-E2(1, :) = 0.6;
-N1(1, :) = 0;
-N2(1, :) = 0;
+% State Space Analysis and Plots
+t = 0:0.1:10000; % time evolution vector
+num_trajec = 50; % number of E trajectories
 
-% Iterative integration
-for i = 2:length(t)
-    dN1 = -N1(i-1, :) + sigma*sqrt(tau2*dt)*randn(1, 20);
-    dN2 = -N2(i-1, :) + sigma*sqrt(tau2*dt)*randn(1, 20);
-    dE1 = (-E1(i-1, :) + theta(w*E1(i-1, :) - E2(i-1, :) - 0.5) + N1(i-1, :))*dt/tau;
-    dE2 = (-E2(i-1, :) + theta(E1(i-1, :) - E2(i-1, :) - 0.5) + N2(i-1, :))*dt/tau;
-    E1(i, :) = E1(i-1, :) + dE1;
-    E2(i, :) = E2(i-1, :) + dE2;
-    N1(i, :) = N1(i-1, :) + dN1;
-    N2(i, :) = N2(i-1, :) + dN2;
-end
-
-% Plotting
-Colours = hsv(size(E1, 2));
-figure;
-plot(E1(:, 1), E2(:, 1), 'r', 'LineWidth', 1);
-hold on;
-for i = 2:size(E1, 2)
-    plot(E1(:, i), E2(:, i), 'r', 'LineWidth', 1, 'Color',Colours(i,:));
-end
-title('State-Space Evolution of E1 and E2');
-xlabel('E1 (mV)');
-ylabel('E2 (mV)');
-
-%% Isocline of the System
-
-% Define range for E1 and E2
-E1_range = linspace(-5, 10, 100);
-E2_range = linspace(-5, 10, 100);
-
-% Define function handles for dE1/dt and dE2/dt
-theta = @(x) x^2/(k^2+x^2);
-dN1dt = @(N1) (-N1 + sigma*sqrt(tau2)*randn())/tau2;
-dN2dt = @(N1) (-N1 + sigma*sqrt(tau2)*randn())/tau2;
-dE1dt = @(E1, E2) (-E1 + theta(w*E1 - E2 - 0.5) + N1)/tau;
-dE2dt = @(E1, E2) (-E2 + theta(E1 - E2 - 0.5) + N2)/tau;
-
-% Compute isoclines
-E1_isocline = zeros(length(E1_range), length(E2_range));
-E2_isocline = zeros(length(E1_range), length(E2_range));
-
-for i = 1:length(E1_range)
-    for j = 1:length(E2_range)
-        E1_isocline(i,j) = dE1dt(E1_range(i), E2_range(j));
-        E2_isocline(i,j) = dE2dt(E1_range(i), E2_range(j));
-    end
-end
-
-% Plot isoclines
-figure;
-contour(E1_range, E2_range, E1_isocline, [0,0], 'LineWidth', 1.5, 'Color', 'blue');
-hold on;
-contour(E1_range, E2_range, E2_isocline, [0,0], 'LineWidth', 1.5, 'Color', 'red');
-title('Isoclines of E1 and E2');
-xlabel('E1 (mV)');
-ylabel('E2 (mV)');
-legend('dE1/dt = 0', 'dE2/dt = 0');
-
-%% Isocline with state space
+dt = t(2)-t(1);
 
 %%Calculation of E1 and E2
-%First elements of matrix E is for values of each trajectory
+%Here first elements of matrix E is for 9 different w
+%Second elements of matrix E is for values of each trajectory
 %Second elements of matrix E is for number of trajectories
-num_trajec = 50;
-E1 = zeros(length(t),num_trajec); % E1 pre-allocation
-E2 = zeros(length(t),num_trajec); % E2 pre-allocation
+%So at the end of day we have 50 trajectory for each w
+E1 = zeros(length(w),length(t),num_trajec); % E1 pre-allocation
+E2 = zeros(length(w),length(t),num_trajec); % E2 pre-allocation
 
 %defining different random initial point for plotting state space
 for i = 1:num_trajec %For each trajectory we need different initial point
-    E1(1,i) = 4*rand-2; % E1 starting point
-    E2(1,i) = 4*rand-2; % E2 starting point
+    E1(1:length(w),1,i) = 4*rand-2; % E1 starting point
+    E2(1:length(w),1,i) = 4*rand-2; % E2 starting point
 end
 
-%Stochastic term
-N1 = zeros(length(t), num_trajec);
-N2 = zeros(length(t), num_trajec);
-N1(1, :) = 0;
-N2(1, :) = 0;
+%Now calculating different E based on the different initial points
+for i = 1:length(t)-1
+    E1(:,i+1,:) = (1-dt/tau)*E1(:,i,:) + dt*phi(w'.*E1(:,i,:) - E2(:,i,:) -0.5, kappa)/tau; % E1 time evolvement
+    E2(:,i+1,:) = (1-dt/tau)*E2(:,i,:) + dt*phi(E1(:,i,:) - E2(:,i,:) -0.5, kappa)/tau; % E2 time evolvement
+end
 
-% Iterative integration
-for j = 1:num_trajec
 
-    for i = 2:length(t)
-        dN1 = -N1(i-1, j) + sigma*sqrt(tau2*dt)*randn();
-        dN2 = -N2(i-1, j) + sigma*sqrt(tau2*dt)*randn();
-        dE1 = (-E1(i-1, j) + theta(w*E1(i-1,j) - E2(i-1,j) - 0.5) + N1(i-1,j))*dt/tau;
-        dE2 = (-E2(i-1,j) + theta(E1(i-1,j) - E2(i-1, :) - 0.5) + N2(i-1,j))*dt/tau;
-        E1(i, j) = E1(i-1, j) + dE1;
-        E2(i, j) = E2(i-1, j) + dE2;
-        N1(i, j) = N1(i-1,j) + dN1;
-        N2(i, j) = N2(i-1, j) + dN2;
+% Flow Field Calculation
+
+[E1_q, E2_q] = meshgrid(-6:0.1:6,-6:0.1:6); % set up a grid for quiver
+
+F1 = zeros(size(E1_q,1), size(E1_q,2), length(w)); % gradient field F1 pre-allocation
+F2 = zeros(size(E2_q,1), size(E2_q,2), length(w)); % gradient field F2 pre-allocation
+
+for i = 1:length(w)
+F1(:,:,i) = gradient_for_E1(E1_q, E2_q, w(i), kappa); % gradient field F1 calculation
+F2(:,:,i) = gradient_for_E1(E1_q, E2_q, w(i), kappa); % gradient field F2 calculation
+end
+
+figure(2)
+for i = 1:9
+    subplot(3,3,i) % create a good subplot formatting
+    title("w = " + w(i))
+    hold on
+    for j=1:size(E1,3) % plotting of the E trajectories
+        plot(E1(i,:,j),E2(i,:,j), 'k', 'Linewidth', 1)
     end
 
+    % Isocline Calculation
+    iso_1 = @(E_1,E_2)-E_1/tau + (w(i)*E_1 - E_2 - 0.5)^2/((0.75^2) + (w(i)*E_1 - E_2 - 0.5)^2)/tau;
+    iso_2 = @(E_1,E_2)-E_2/tau + (E_1 - E_2 - 0.5)^2/((0.75^2) + (E_1 - E_2 - 0.5)^2)/tau;
+    fimplicit(iso_1,'LineWidth',2) %Plotting nullcline for first E1
+    fimplicit(iso_2,'LineWidth',2) %Plotting nullcline for first E2
+
+    plot(fix_x(i,:),fix_y(i,:),'*r','LineWidth',2); %Plottinf fixed point
+    quiver(E1_q, E2_q, F1(:,:,i), F2(:,:,i),3) % gradient field
+    hold off
+    xlabel('E1')
+    ylabel('E2')
+    xlim([-0.5 1.25])
+    ylim([-0.5 1.25])
+    set(gca,'FontSize',12)
+    %legend('E1 trajectory','E2 trajectory','E1 isocline','E2 isocline','fixed point');
 end
 
-%Plotting
-figure
-plot(E1(:,1),E2(:,1), 'k', 'Linewidth', 1)
-hold on
-for i=2:num_trajec
-    plot(E1(:,i),E2(:,i), 'k', 'Linewidth', 1)
-end
-title('Isoclines of E1 and E2 + State Space');
-xlabel('E1 (mV)');
-ylabel('E2 (mV)');
-% Isocline Calculation
-iso_1 = @(E_1,E_2)-E_1/tau + (w*E_1 - E_2 - 0.5)^2/((0.75^2) + (w*E_1 - E_2 - 0.5)^2)/tau;
-iso_2 = @(E_1,E_2)-E_2/tau + (E_1 - E_2 - 0.5)^2/((0.75^2) + (E_1 - E_2 - 0.5)^2)/tau;
-fimplicit(iso_1,'LineWidth',2) %Plotting nullcline for first E1
-hold on
-fimplicit(iso_2,'LineWidth',2) %Plotting nullcline for first E2
-hold off
+%% Bifurcation Diagram
 
-%% First passage time from high to low
-
-% Parameters
-sigma = 1;
-T_end = 50*tau;
-threshold = 0.1;
-
-% Initial conditions
-E1 = 0.9;
-E2 = 0.1;
-N1 = 0;
-N2 = 0;
-
-% Number of trajectories
-n_traj = 100;
-
-% Initialize first-passage time vector
-T_fpt = zeros(n_traj, 1);
-
-% Loop over trajectories
-for i = 1:n_traj
-    
-    % Initialize time and state vectors
-    t = 0:dt:T_end;
-    E1_traj = zeros(size(t));
-    E2_traj = zeros(size(t));
-    
-    % Set initial state
-    E1_traj(1) = E1;
-    E2_traj(1) = E2;
-    
-    % Loop over time steps
-    for j = 2:length(t)
-        
-        % Compute noise terms
-        dN1 = sigma*sqrt(tau2*dt)*randn();
-        dN2 = sigma*sqrt(tau2*dt)*randn();
-        zeta = randn();
-        
-        % Compute derivatives
-        dE1 = (-E1_traj(j-1) + theta(w*E1_traj(j-1) - E2_traj(j-1) - 0.5) + N1 + dN1)/tau;
-        dE2 = (-E2_traj(j-1) + theta(E1_traj(j-1) - E2_traj(j-1) - 0.5) + N2 + dN2)/tau;
-        dN1dt = -N1/tau2 + sigma*sqrt(tau2)*zeta;
-        dN2dt = -N2/tau2 + sigma*sqrt(tau2)*zeta;
-        
-        % Update state variables
-        E1_traj(j) = E1_traj(j-1) + dt*dE1;
-        E2_traj(j) = E2_traj(j-1) + dt*dE2;
-        N1 = N1 + dt*dN1dt;
-        N2 = N2 + dt*dN2dt;
-        
-        % Check if threshold has been crossed
-        if E2_traj(j) <= threshold
-            T_fpt(i) = t(j);
-            break;
-        end
-        
-    end
-    
-end
-
-% Plot cumulative distribution of first-passage time
-figure;
-[f, x] = ecdf(T_fpt);
-plot(x, f, 'LineWidth', 1.5);
-title('Cumulative distribution of first-passage time');
-xlabel('Time (ms)');
-ylabel('Cumulative probability');
-
-%% First-passage time from low to high!
-
-% Parameters
-sigma = 1;
-T_end = 50*tau;
-threshold = 0.9;
-
-% Initial conditions
-E1 = 0.2;
-E2 = 0.6;
-N1 = 0;
-N2 = 0;
-
-% Number of trajectories
-n_traj = 100;
-
-% Initialize first-passage time vector
-T_fpt = zeros(n_traj, 1);
-
-% Loop over trajectories
-for i = 1:n_traj
-    
-    % Initialize time and state vectors
-    t = 0:dt:T_end;
-    E1_traj = zeros(size(t));
-    E2_traj = zeros(size(t));
-    
-    % Set initial state
-    E1_traj(1) = E1;
-    E2_traj(1) = E2;
-    
-    % Loop over time steps
-    for j = 2:length(t)
-        
-        % Compute noise terms
-        dN1 = sigma*sqrt(tau2*dt)*randn();
-        dN2 = sigma*sqrt(tau2*dt)*randn();
-        zeta = randn();
-        
-        % Compute derivatives
-        dE1 = (-E1_traj(j-1) + theta(w*E1_traj(j-1) - E2_traj(j-1) - 0.5) + N1 + dN1)/tau;
-        dE2 = (-E2_traj(j-1) + theta(E1_traj(j-1) - E2_traj(j-1) - 0.5) + N2 + dN2)/tau;
-        dN1dt = -N1/tau2 + sigma*sqrt(tau2)*zeta;
-        dN2dt = -N2/tau2 + sigma*sqrt(tau2)*zeta;
-        
-        % Update state variables
-        E1_traj(j) = E1_traj(j-1) + dt*dE1;
-        E2_traj(j) = E2_traj(j-1) + dt*dE2;
-        N1 = N1 + dt*dN1dt;
-        N2 = N2 + dt*dN2dt;
-        
-        % Check if threshold has been crossed
-        if E2_traj(j) >= threshold
-            T_fpt(i) = t(j);
-            break;
-        end
-        
-    end
-    
-end
-
-% Plot cumulative distribution of first-passage time
-figure;
-[f, x] = ecdf(T_fpt);
-plot(x, f, 'LineWidth', 1.5);
-title('Cumulative distribution of first-passage time');
-xlabel('Time (ms)');
-ylabel('Cumulative probability');
-
-%% 95% of all trajectories remain in the initial state
-% Parameters
+x_0 = [0,0 ; 0.5,0.5 ; 1,0.5]; %defining three different initial step which determines three different root for w>2.25 and remain same for w<2.25
 tau = 10;
-k = 0.75;
-w = 3.6;
-tau2 = 2;
-dt = 0.05*tau2;
-threshold = 0.9;
+kappa = 0.75;
+w = 2:0.01:4;
 
-% Initial conditions
-E1 = 0.1;
-E2 = 0.1;
-
-% Number of trajectories
-n_traj = 1000;
-
-% Initialize fraction of trajectories in initial state
-frac_init = zeros(21, 21);
-
-% Loop over T_end values
-for i = 1:21
-    T_end = i*tau;
-    
-    % Loop over sigma values
-    for j = 1:21
-        sigma = j/10;
-        
-        % Count fraction of trajectories in initial state
-        n_init = 0;
-        for k = 1:n_traj
-            % Initialize time and state vectors
-            t = 0:dt:T_end;
-            E1_traj = zeros(size(t));
-            E2_traj = zeros(size(t));
-
-            % Set initial state
-            E1_traj(1) = E1;
-            E2_traj(1) = E2;
-
-            % Loop over time steps
-            for l = 2:length(t)
-
-                % Compute noise terms
-                dN1 = sigma*sqrt(tau2*dt)*randn();
-                dN2 = sigma*sqrt(tau2*dt)*randn();
-                zeta = randn();
-
-                % Compute derivatives
-                dE1 = (-E1_traj(l-1) + theta(w*E1_traj(l-1) - E2_traj(l-1) - 0.5))/tau + dN1/tau;
-                dE2 = (-E2_traj(l-1) + theta(E1_traj(l-1) - E2_traj(l-1) - 0.5))/tau + dN2/tau;
-
-                % Update state variables
-                E1_traj(l) = E1_traj(l-1) + dt*dE1;
-                E2_traj(l) = E2_traj(l-1) + dt*dE2;
-
-            end
-
-            % Check if at least 95% of trajectories are in initial state
-            if sum(E2_traj >= threshold) == 0
-                n_init = n_init + 1;
-            end
-
-        end
-        
-        % Compute fraction of trajectories in initial state
-        frac_init(i, j) = n_init/n_traj;
-        
-    end
+for i=1:length(w)
+       W=w(i);
+       for j=1:3 %evaluatinf root for each w with three different initial point
+         x0 = x_0(j,:);
+         fun = @(x)exercise4(x,W); 
+         z = fsolve(fun,x0);
+         fix_x(i,j) = z(1,1);
+         fix_y(i,j) = z(1,2);
+       end
+       plot(w(i),fix_x(i,:),'*b','LineWidth',2); %Plottinf fixed point
+       hold on
+       xlabel('W');
+       ylabel('Es')
 end
 
-% Plot fraction of trajectories in initial state
-figure;
-x = 0.1:0.1:2.1;
-y = 1:21;
-surf(x, y, frac_init);
-xlabel('sigma');
-ylabel('T\_end (ms)');
-zlabel('Fraction of trajectories in initial state');
-
-%% Spectral analysis
-
-% Parameters
-T_end = 12;
-dt = 0.01;
-sigma = 1;
-num_realizations = 100;
-
-% System equations
+%% Jacobian Matrix
+x_0 = [0.1847,0.5962 ; 0.3162,0.2548 ; 0.9461,0.1415]; %you have to pick up one of this initial step to rech to the identical steady state or you can just pick steady state instead 
 tau = 10;
-k = 0.75;
-w = 3.6;
-tau2 = 2;
+kappa = 0.75;
+w =4; %determine your weight
+x0 = x_0(3,:); %Pick one of the rows of matrix of x_0
+fun = @(x)exercise4(x,w);
+[x,fval,exitflag,output,jacobian] =fsolve(fun,x0);
+B = [-0.5;-0.5]; %B is the constant input vector size(2,1)
+% First run the LinearOrder2 function
+LinearOrder2(jacobian,B,x0)
+%% Functions
+% Activation function of E1/E2
+function E_s = ActivationFunction( E, w )   % activation function
 
-% Initial conditions
-initial_states = [0.9 0.1; 0.2 0.6];
+E_1 =  ((w*E(1,:) - E(2,:) - 0.5)^2)/((0.75^2) + (w*E(1,:) - E(2,:) - 0.5)^2);
+E_2 =  ((E(1,:) - E(2,:) - 0.5)^2)/((0.75^2) + (E(1,:) - E(2,:) - 0.5)^2);
 
-% Preallocate arrays
-%On each rows located each realization, on columns values at the specefic
-%time (t)
-E1_fft_high = zeros(num_realizations, T_end/dt); 
-E2_fft_high = zeros(num_realizations, T_end/dt);
-E1_fft_low = zeros(num_realizations, T_end/dt);
-E2_fft_low = zeros(num_realizations, T_end/dt);
-N1_fft = zeros(num_realizations, T_end/dt);
-N2_fft = zeros(num_realizations, T_end/dt);
-
-% Loop over initial states
-for i = 1:size(initial_states, 1) %we have two initial state
-    % Loop over realizations
-    for j = 1:num_realizations
-        % Initial conditions
-        E = initial_states(i,:);
-        N = [randn() randn()];
-
-        % Preallocate arrays for time series
-        E1 = zeros(1, T_end/dt);
-        E2 = zeros(1, T_end/dt);
-        N1 = zeros(1, T_end/dt);
-        N2 = zeros(1, T_end/dt);
-        %Assigning the initial value to vectors
-        E1(1,1) = E(1,1);
-        E2(1,1) = E(1,2);
-        N1(1,1) = N(1,1);
-        N2(1,2) = N(1,2);
-
-        % Time-evolution loop
-        for t = 1:(T_end/dt)-1
-            zeta = randn();
-            E1(t+1) = E1(t) + dt/tau*(-E1(t) + theta(w*E1(t) - E2(t) - 0.5) + N(1));
-            E2(t+1) = E2(t) + dt/tau*(-E2(t) + theta(E1(t) - E2(t) - 0.5) + N(2));
-            N1(t+1) = N1(t) + dt/tau2*(-N1(t) + sigma*sqrt(tau2)*zeta);
-            N2(t+1) = N2(t) + dt/tau2*(-N2(t) + sigma*sqrt(tau2)*zeta);
-            N = [N1(t+1) N2(t+1)];
-        end
-
-        % Compute and store Fourier transforms
-        if initial_states(i,1) == 0.9
-            E1_fft_high(j,:) = abs(fft(E1));
-            E2_fft_high(j,:) = abs(fft(E2));
-        else
-            E1_fft_low(j,:) = abs(fft(E1));
-            E2_fft_low(j,:) = abs(fft(E2));
-        end
-        N1_fft(j,:) = abs(fft(N1));
-        N2_fft(j,:) = abs(fft(N2));
-    end
+E_s = [E_1 ; E_2];
 end
 
-% Compute and plot average spectra
-E1_spectrum_high = mean(E1_fft_high, 1);
-E2_spectrum_high = mean(E2_fft_high, 1);
-E1_spectrum_low = mean(E1_fft_low, 1);
-E2_spectrum_low = mean(E2_fft_low, 1);
-N1_spectrum = mean(N1_fft, 1);
-N2_spectrum = mean(N2_fft, 1);
+% function of activation function in singular phi
+function phi_val = phi(x, kappa)
 
-figure()
+      phi_val = x.^2./(kappa^2+x.^2);
 
-plot(E1_spectrum_high,'LineWidth',2)
-title('E1/2 spectrum starting in high/low state')
-xlabel('Frequency (cycles per sample)')
-ylabel('Magnitude')
-hold on
-plot(E2_spectrum_high,'LineWidth',2)
-plot(E1_spectrum_low,'LineWidth',2)
-plot(E2_spectrum_low,'LineWidth',2)
-legend('E1(high)','E2(high)','E1(Low)','E2(Low)')
+end
 
-%figure for brownian motion
-% N1_spectrum = fftshift(N1_spectrum);
-% N2_spectrum = fftshift(N2_spectrum);
-figure()
-plot(N1_spectrum,'LineWidth',2)
-hold on
-plot(N2_spectrum,'LineWidth',2)
-legend('N1','N2')
-title('Experimental Spectrum of Brownian Noise N(t)');
-xlabel('Frequency (Hz)')
-ylabel('Power Spectral Density')
-xticks([0 300 600 900 1200])
-xticklabels({'-10','-5','0','5','10'})
-yticks([0 45 90 135 180])
-yticklabels({'0','0.5','1','1.5','2'});
+% function to calculate gradient field for E1
+function grad = gradient_for_E1(E1, E2, w, kappa)
+   grad = -E1 + phi(w*E1- E2 - 0.5, kappa);
+end
 
-% Diffferntial spectrum
-E1_differential = E1_spectrum_low - E1_spectrum_high;
-E2_differential = E2_spectrum_low - E2_spectrum_high;
-figure()
-plot(E1_differential,'LineWidth',2)
-hold on
-plot(E2_differential,'LineWidth',2)
-legend('E1 differential','E2 differential')
-title('E1/2 differential spectrum')
-xlabel('Frequency (cycles per sample)')
-ylabel('Magnitude')
+% function to calculate gradient field for E2
+function grad = gradient_for_E2(E1, E2, w, kappa)
+   grad = -E2 + phi(E1 - E2 -0.5, kappa);
+end
 
-%% Comparison of Theoretical and Simulated Power Spectra of Brownian Noise
-% Define parameters
-tau_n = 2; % timescale of noise
-sigma_n = 1; % amplitude of noise
+function dxdt = exercise4(x,w)
 
-% Load simulated noise data 
-% N1 is a vector of noise values sampled at a fixed time interval
-dt = 0.01; % time interval between samples
-Fs = 1/dt; % sampling frequency
-L = length(N1); % length of signal
-t = (0:L-1)*dt; % time vector
+dxdt = [-x(1) + (((w*x(1) - x(2) - 0.5)^2)/((0.75^2)+(w*x(1) - x(2) - 0.5)^2)); -x(2) + (((x(1) - x(2) - 0.5)^2)/((0.75^2)+((x(1) - x(2) - 0.5)^2)))];
 
-% Compute power spectrum of simulated noise
-Y = fft(N1);
-P2 = abs(Y/L).^2;
-P1 = P2(1:L/2+1);
-P1(2:end-1) = 2*P1(2:end-1);
-f = Fs*(0:(L/2))/L;
-
-% Compute theoretical spectrum of Brownian noise
-w = linspace(0, 10, 1000);
-S = ((tau_n)*(sigma_n^2)) ./ (1 + (tau_n^2)*(w.^2));
-
-% Plot both spectra on the same graph
-loglog(f, P1, 'b', w, S, 'r','LineWidth',2);
-xlabel('Frequency (Hz)(log)');
-ylabel('Power Spectral Density(log)');
-title('Comparison of Theoretical and Simulated Power Spectra of Brownian Noise');
-legend('Simulated Noise', 'Theoretical Brownian Noise');
-
+end
